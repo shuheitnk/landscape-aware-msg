@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+res_rq1/
+res_rq2/
+res_rq3/
+*.csv
+*.pt
+*.pth
