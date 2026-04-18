@@ -62,31 +62,24 @@ class EvolutionStrategy:
             eps_half = torch.randn(half, dim_theta, device=self.device)
             eps = torch.cat([eps_half, -eps_half], dim=0)
             theta_children = theta_parent + self.mutation_std * eps
-
-            # Clip alpha and sigma values
-            theta_children[:, :M] = torch.clamp(theta_children[:, :M], min=0.0)
-            theta_children[:, M:] = torch.clamp(theta_children[:, M:], min=0.05*(self.D**0.5), max=self.D**0.5)
-
-            # Normalize alpha values for evaluation
-            thetas_eval = torch.cat([
-                theta_children[:, :M] / theta_children[:, :M].max(dim=1, keepdim=True).values,
-                theta_children[:, M:]
-            ], dim=1)
+            alphas= torch.clamp(theta_children[:, :M], min=0, max=1)
+            sigmas = torch.clamp(theta_children[:, M:], min=0.05*(self.D**0.5), max=self.D**0.5)
+            thetas_eval = torch.cat([alphas, sigmas], dim=1)
 
             with torch.no_grad():
                 fitness_scores = self.fitness_fn(thetas_eval)
                 best_idx = torch.argmin(fitness_scores)
                 min_fitness = fitness_scores[best_idx].item()
 
-            best_scaled = thetas_eval[best_idx].detach().clone()
+            best_theta = thetas_eval[best_idx].detach().clone()
             theta_parent = theta_children[best_idx].detach().clone()
 
             if min_fitness < best_fitness:
                 best_fitness = min_fitness
-                best_theta = best_scaled
+                best_theta = best_theta
 
             fitness_history.append(min_fitness)
-            theta_history.append(best_scaled)
+            theta_history.append(best_theta)
             best_fitness_history.append(best_fitness)
 
         return {
@@ -114,30 +107,24 @@ class EvolutionStrategy:
             eps_half = torch.randn(half, dim_theta, device=self.device)
             eps = torch.cat([eps_half, -eps_half], dim=0)
             theta_children = theta_parent + self.mutation_std * eps
-
-            theta_children[:, :M] = torch.clamp(theta_children[:, :M], min=0.0)
-            theta_children[:, M:] = torch.clamp(theta_children[:, M:], min=0.01*(self.D**0.5), max=self.D**0.5)
-
-            alphas_internal = theta_children[:, :M]
-            sigmas_internal = theta_children[:, M:]
-            max_vals = alphas_internal.max(dim=1, keepdim=True).values
-            alphas = alphas_internal / max_vals
-            thetas_eval = torch.cat([alphas, sigmas_internal], dim=1)
+            alphas= torch.clamp(theta_children[:, :M], min=0, max=1)
+            sigmas = torch.clamp(theta_children[:, M:], min=0.05*(self.D**0.5), max=self.D**0.5)
+            thetas_eval = torch.cat([alphas, sigmas], dim=1)
 
             with torch.no_grad():
                 fitness_scores = self.fitness_fn(thetas_eval)
                 best_idx = torch.argmax(fitness_scores)
                 max_fitness = fitness_scores[best_idx].item()
 
-            best_scaled = thetas_eval[best_idx].detach().clone()
-            theta_parent = theta_children[best_idx].detach().clone()
+            best_theta = thetas_eval[best_idx].detach().clone()
+            theta_parent = best_theta
 
             if max_fitness > best_fitness:
                 best_fitness = max_fitness
-                best_theta = best_scaled
+                best_theta = best_theta
 
             fitness_history.append(max_fitness)
-            theta_history.append(best_scaled)
+            theta_history.append(best_theta)
             best_fitness_history.append(best_fitness)
 
         return {
@@ -161,27 +148,22 @@ class EvolutionStrategy:
 
         for gen in range(generations):
             theta_random = torch.rand(self.population_size, dim_theta, device=self.device) * (self.D**0.5)
-            theta_random[:, M:] = torch.clamp(theta_random[:, M:], min=0.01*(self.D**0.5), max=self.D**0.5)
-
-            alphas_internal = theta_random[:, :M]
-            sigmas_internal = theta_random[:, M:]
-            max_vals = alphas_internal.max(dim=1, keepdim=True).values
-            alphas = alphas_internal / max_vals
-            sigmas = sigmas_internal
+            alphas= torch.clamp(theta_random[:, :M], min=0, max=1)
+            sigmas = torch.clamp(theta_random[:, M:], min=0.05*(self.D**0.5), max=self.D**0.5)
             thetas_eval = torch.cat([alphas, sigmas], dim=1)
 
             with torch.no_grad():
                 fitness_scores = self.fitness_fn(thetas_eval)
                 min_idx = torch.argmin(fitness_scores)
                 min_fitness = fitness_scores[min_idx].item()
-                best_scaled = thetas_eval[min_idx].reshape(-1).clone()
+                best_theta = thetas_eval[min_idx].reshape(-1).clone()
 
             if min_fitness < best_fitness:
                 best_fitness = min_fitness
-                best_theta = best_scaled
+                best_theta = best_theta
 
             fitness_history.append(min_fitness)
-            theta_history.append(best_scaled)
+            theta_history.append(best_theta)
             best_fitness_history.append(best_fitness)
 
         return {
@@ -205,27 +187,22 @@ class EvolutionStrategy:
 
         for gen in range(generations):
             theta_random = torch.rand(self.population_size, dim_theta, device=self.device) * (self.D**0.5)
-            theta_random[:, M:] = torch.clamp(theta_random[:, M:], min=0.05*(self.D**0.5), max=self.D**0.5)
-
-            alphas_internal = theta_random[:, :M]
-            sigmas_internal = theta_random[:, M:]
-            max_vals = alphas_internal.max(dim=1, keepdim=True).values
-            alphas = alphas_internal / max_vals
-            sigmas = sigmas_internal
+            alphas= torch.clamp(theta_random[:, :M], min=0, max=1)
+            sigmas = torch.clamp(theta_random[:, M:], min=0.05*(self.D**0.5), max=self.D**0.5)
             thetas_eval = torch.cat([alphas, sigmas], dim=1)
 
             with torch.no_grad():
                 fitness_scores = self.fitness_fn(thetas_eval)
                 max_idx = torch.argmax(fitness_scores)
                 max_fitness = fitness_scores[max_idx].item()
-                best_scaled = thetas_eval[max_idx].reshape(-1).clone()
+                best_theta = thetas_eval[max_idx].reshape(-1).clone()
 
             if max_fitness > best_fitness:
                 best_fitness = max_fitness
-                best_theta = best_scaled
+                best_theta = best_theta
 
             fitness_history.append(max_fitness)
-            theta_history.append(best_scaled)
+            theta_history.append(best_theta)
             best_fitness_history.append(best_fitness)
 
         return {
