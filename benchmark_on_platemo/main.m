@@ -40,7 +40,7 @@ ETA_VALUES    = [0.2, 0.4, 0.6, 0.8, 1.0];
 NUM_SAMPLES   = 500 * D;
 
 CKPT_PATH = '.\res_rq2\msg_ela\results_max_max_min_2d.pt';
-CSV_FILE  = 'IGDX_scores_max_max_min_2d_v2.csv';
+CSV_FILE  = 'IGDX_scores_max_max_min_2d.csv';
 
 FEATURE_LIST = py.list({'optima_feature','fdc_feature', ...
                         'disp_feature','r2_feature'});
@@ -58,9 +58,43 @@ ckpt          = torch_py.load(CKPT_PATH);
 theta_history = double(ckpt{'theta_history'}.detach().cpu().numpy());
 
 %% ============================================================
+%  Resume: Load completed (idx, seed) pairs from CSV
+%% ============================================================
+completed = containers.Map('KeyType', 'char', 'ValueType', 'logical');
+if isfile(CSV_FILE)
+    T = readtable(CSV_FILE);
+    bad = any(ismissing(T(:, {'idx','seed'})), 2);
+    if any(bad)
+        warning('Dropping %d corrupted row(s) from resume map', sum(bad));
+        T(bad, :) = [];
+    end
+    for r = 1:height(T)
+        k = sprintf('%d_%d', T.idx(r), T.seed(r));
+        completed(k) = true;
+    end
+    fprintf('Resume mode: %d rows already in %s\n', height(T), CSV_FILE);
+else
+    fprintf('Fresh run: %s not found\n', CSV_FILE);
+end
+
+make_key = @(i, s) sprintf('%d_%d', i, s);
+
+%% ============================================================
 %  Main Loop: evaluate HREA (IGDX) for each theta x seed x eta
 %% ============================================================
 for idx = 1:size(theta_history, 1)
+
+    % Skip this idx entirely if every (idx, seed) is done
+    all_done = true;
+    for t = 1:NUM_TRIALS
+        if ~isKey(completed, make_key(idx, BASE_SEED + t))
+            all_done = false; break;
+        end
+    end
+    if all_done
+        fprintf('Skip idx=%d (all %d trials done)\n', idx, NUM_TRIALS);
+        continue;
+    end
 
     % --- Build MSG landscape for this theta ---
     theta = py.torch.tensor(theta_history(idx, :), pyargs( ...
@@ -100,6 +134,10 @@ for idx = 1:size(theta_history, 1)
     % --- Run HREA across seeds and eta values ---
     for trial = 1:NUM_TRIALS
         seed = BASE_SEED + trial;
+        if isKey(completed, make_key(idx, seed))
+            continue;
+        end
+
         rng(seed);
         py.random.seed(seed);
 
@@ -118,6 +156,8 @@ for idx = 1:size(theta_history, 1)
 
         append_row(CSV_FILE, idx, seed, n_eps_local, ...
                    num_local_optima, fdc, dispersion, scores);
+
+        completed(make_key(idx, seed)) = true;
     end
 end
 
