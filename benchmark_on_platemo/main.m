@@ -67,8 +67,8 @@ for i = 1:length(types)
 
     type = types(i); 
 
-    CKPT_PATH = ".\res_rq2\msg_ela\results_" + type + "_2d.pt";
-    CSV_FILE  = "IGDX_scores_" + type + "_2d.csv";
+    CKPT_PATH = ".\res_rq2\msg_ela\results_" + type + "_" + num2str(D) + "d.pt";
+    CSV_FILE  = "IGDX_scores_" + type + "_" + num2str(D) + "d.csv";
     FEATURE_LIST = py.list({'optima_feature','fdc_feature', ...
                             'disp_feature','r2_feature'});
     P_LIST       = py.list({0.1});
