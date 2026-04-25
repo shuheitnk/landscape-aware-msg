@@ -60,8 +60,8 @@ nvcc --version
 ## 6. Clone the Repository
 
 ```powershell
-git clone https://github.com/shuheitnk/landscape-aware-MSG.git
-cd anonymous-review
+git clone https://github.com/shuheitnk/landscape-aware-msg.git
+cd landscape-aware-msg
 ```
 
 ---
