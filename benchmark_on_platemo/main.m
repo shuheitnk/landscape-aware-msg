@@ -2,17 +2,37 @@
 %  Python Environment Setup
 %% ============================================================
 PYTHON_PATH = '.\.venv\Scripts\python.exe';
+
+% Resolve to absolute, canonical path for reliable comparison
+PYTHON_PATH_ABS = canonical_path(PYTHON_PATH);
+
 pe = pyenv;
 if pe.Status == "NotLoaded"
-    pe = pyenv('Version', PYTHON_PATH, 'ExecutionMode', 'InProcess');
-elseif ~strcmpi(pe.Executable, PYTHON_PATH)
-    error(['Python environment mismatch:\n' ...
-           '  Current   : %s\n' ...
-           '  Requested : %s\n' ...
-           'Restart MATLAB to switch.'], char(pe.Executable), PYTHON_PATH);
+    pe = pyenv('Version', PYTHON_PATH_ABS, 'ExecutionMode', 'InProcess');
+else
+    current_abs = canonical_path(char(pe.Executable));
+    if ~strcmpi(current_abs, PYTHON_PATH_ABS)
+        error(['Python environment mismatch:\n' ...
+               '  Current   : %s\n' ...
+               '  Requested : %s\n' ...
+               'Restart MATLAB to switch.'], current_abs, PYTHON_PATH_ABS);
+    end
 end
 fprintf('CurrentPython: %s\n', char(pe.Executable));
 
+
+function p = canonical_path(p)
+% Resolve to absolute path; fall back to the input if the file is missing.
+    info = dir(p);
+    if ~isempty(info)
+        p = fullfile(info(1).folder, info(1).name);
+    else
+        % File not found: at least make it absolute relative to pwd
+        if ~startsWith(p, ["\\", "/"]) && isempty(regexp(p, '^[A-Za-z]:', 'once'))
+            p = fullfile(pwd, p);
+        end
+    end
+end
 %% ============================================================
 %  Python Module Path & Imports
 %% ============================================================
@@ -35,12 +55,11 @@ NUM_GAUSSIANS = 100;
 BASE_SEED     = 42;
 D             = 2;
 DEVICE        = 'cuda';
-NUM_TRIALS    = 11;
-ETA_VALUES    = [0.2, 0.4, 0.6, 0.8, 1.0];
+NUM_TRIALS    = 31;
 NUM_SAMPLES   = 500 * D;
 
-CKPT_PATH = '.\res_rq2\msg_ela\results_max_max_min_2d.pt';
-CSV_FILE  = 'IGDX_scores_max_max_min_2d.csv';
+CKPT_PATH = '.\res_rq2\msg_ela\results_max_min_min_2d.pt';
+CSV_FILE  = 'IGDX_scores_max_min_min_2d.csv';
 
 FEATURE_LIST = py.list({'optima_feature','fdc_feature', ...
                         'disp_feature','r2_feature'});
@@ -126,9 +145,9 @@ for idx = 1:size(theta_history, 1)
     F_local  = multi_msg(X_local);
     F_global = multi_msg(X_global);
 
-    % Epsilon-local optima in decision space (eps = 0)
+    % Epsilon-local optima in decision space (eps = 0.05)
     [pop_filtered, ~] = get_epsilon_local_optima( ...
-        X_local, F_local, F_global, 0.0);
+        X_local, F_local, F_global, 0.05);
     n_eps_local = size(pop_filtered, 1);
 
     % --- Run HREA across seeds and eta values ---
@@ -141,21 +160,41 @@ for idx = 1:size(theta_history, 1)
         rng(seed);
         py.random.seed(seed);
 
-        scores = zeros(1, numel(ETA_VALUES));
-        for k = 1:numel(ETA_VALUES)
-            ALG     = custom_HREA('save', 0);
-            ALG.p   = 1.0;
-            ALG.eta = ETA_VALUES(k);
-            ALG.eps = 0.1;
-            ALG.Solve(PRO);
+        scores_IGDX = zeros(1, 3);
+        scores_Global_IGDX = zeros(1, 3);
+        scores_HV   = zeros(1, 3);
+        HREA     = custom_HREA();
+        HREA.Solve(PRO);
 
-            archive_decs = vertcat(ALG.Archive.dec);
-            scores(k)    = IGDX(archive_decs, pop_filtered);
-        end
+        archive = HREA.Archive;
+        final_pop_HREA = HREA.result{end};
+        scores_IGDX(1)    = IGDX(archive, pop_filtered);
+        scores_Global_IGDX(1) = IGDX(archive, X_global);
+        scores_HV(1)      = HV(final_pop_HREA, F_global);
+        fprintf('HREA trial %d/%d: IGDX=%.4f, IGDX_Global=%.4f, HV=%.4f\n', trial, NUM_TRIALS, scores_IGDX(1), scores_Global_IGDX(1), scores_HV(1));
+
+        MMEAWI    = custom_MMEAWI();
+        MMEAWI.Solve(PRO);
+        archive = MMEAWI.Archive;
+        final_pop_MMEAWI = MMEAWI.result{end};
+        scores_IGDX(2)    = IGDX(archive, pop_filtered);
+        scores_Global_IGDX(2) = IGDX(archive, X_global);
+        scores_HV(2)      = HV(final_pop_MMEAWI, F_global);
+        fprintf('MMEAWI trial %d/%d: IGDX=%.4f, IGDX_Global=%.4f, HV=%.4f\n', trial, NUM_TRIALS, scores_IGDX(2), scores_Global_IGDX(2), scores_HV(2));
+
+        NSGAII     = custom_NSGAII();
+        NSGAII.Solve(PRO);
+        final_pop_NSGAII = NSGAII.result{end};
+        scores_IGDX(3)    = IGDX(final_pop_NSGAII, pop_filtered);
+        scores_Global_IGDX(3) = IGDX(final_pop_NSGAII, X_global);
+        scores_HV(3)      = HV(final_pop_NSGAII, F_global);
+        fprintf('NSGAII trial %d/%d: IGDX=%.4f, IGDX_Global=%.4f, HV=%.4f\n', trial, NUM_TRIALS, scores_IGDX(3), scores_Global_IGDX(3), scores_HV(3));
+
+
         fprintf('idx=%d, trial=%d/%d finished\n', idx, trial, NUM_TRIALS);
 
         append_row(CSV_FILE, idx, seed, n_eps_local, ...
-                   num_local_optima, fdc, dispersion, scores);
+                   num_local_optima, fdc, dispersion, scores_IGDX, scores_Global_IGDX, scores_HV);
 
         completed(make_key(idx, seed)) = true;
     end
@@ -170,14 +209,16 @@ function m = reload_py(name)
     py.importlib.reload(m);
 end
 
-function append_row(csv_file, idx, seed, n_eps, n_local, fdc, disp10, scores)
+function append_row(csv_file, idx, seed, n_eps, n_local, fdc, disp10, scores_IGDX, scores_Global_IGDX, scores_HV)
     % Append a result row to CSV; write header on first call.
     if ~isfile(csv_file)
         header = {'idx','seed','num_epsilon_local_optima', ...
                   'num_local_optima','fdc','disp_10pct', ...
-                  'score_0_2','score_0_4','score_0_6','score_0_8','score_1_0'};
+                  'IGDX_HREA','IGDX_MMEAWI','IGDX_NSGAII', ...
+                  'IGDX_Global_HREA','IGDX_Global_MMEAWI','IGDX_Global_NSGAII', ...
+                  'HV_HREA','HV_MMEAWI','HV_NSGAII'};
         writecell(header, csv_file);
     end
-    row = [{idx}, {seed}, {n_eps}, {n_local}, {fdc}, {disp10}, num2cell(scores)];
+    row = [{idx}, {seed}, {n_eps}, {n_local}, {fdc}, {disp10}, num2cell(scores_IGDX), num2cell(scores_Global_IGDX), num2cell(scores_HV)];
     writecell(row, csv_file, 'WriteMode', 'append');
 end
