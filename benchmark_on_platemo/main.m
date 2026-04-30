@@ -53,7 +53,7 @@ torch_py      = py.importlib.import_module('torch');
 %% ============================================================
 
 BASE_SEED     = 42;
-D_class             = [10, 5, 2];
+D_class       = [2, 5, 10];
 
 for d = 1:length(D_class)
     D = D_class(d);
@@ -63,8 +63,8 @@ for d = 1:length(D_class)
     NUM_TRIALS    = 31;
     NUM_SAMPLES   = 500 * D;
 
-    types = ["max_max_max", "max_max_min", "min_min_max", "min_min_min", ...
-            "min_max_max", "min_max_min"];
+    types = ["max_max_max", "max_max_min", "max_min_max", "max_min_min", 
+             "min_max_max", "min_max_min", "min_min_max", "min_min_min"];
 
     for i = 1:length(types)
         fprintf('Type %d: %s\n', i, types(i));
