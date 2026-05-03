@@ -1,7 +1,14 @@
+
+thisFilePath = fileparts(mfilename('fullpath'));
+cd(thisFilePath);
+
+addpath(genpath(fullfile(thisFilePath, '..', 'PlatEMO')));
+rehash;
+
 %% ============================================================
 %  Python Environment Setup
 %% ============================================================
-PYTHON_PATH = '.\.venv\Scripts\python.exe';
+PYTHON_PATH = '..\.venv\Scripts\python.exe';
 
 % Resolve to absolute, canonical path for reliable comparison
 PYTHON_PATH_ABS = canonical_path(PYTHON_PATH);
@@ -36,16 +43,17 @@ end
 %% ============================================================
 %  Python Module Path & Imports
 %% ============================================================
-SCRIPT_PATH = '.\x_msg';
-if count(py.sys.path, SCRIPT_PATH) == 0
-    insert(py.sys.path, int32(0), SCRIPT_PATH);
+PROJECT_ROOT = fullfile(thisFilePath, '..');
+
+if count(py.sys.path, PROJECT_ROOT) == 0
+    insert(py.sys.path, int32(0), PROJECT_ROOT);
 end
 
 % Project modules (reloaded so edits take effect)
-construct_msg = reload_py('construct_msg_landscape');
-sampling_py   = reload_py('sampling');
-make_mo_msg   = reload_py('make_multi_objective_msg');
-extract_feat  = reload_py('extract_features');
+construct_msg = reload_py('x_msg.construct_msg_landscape');
+sampling_py   = reload_py('x_msg.sampling');
+make_mo_msg   = reload_py('x_msg.make_multi_objective_msg');
+extract_feat  = reload_py('x_msg.extract_features');
 torch_py      = py.importlib.import_module('torch');
 
 %% ============================================================
@@ -71,7 +79,11 @@ for d = 1:length(D_class)
 
         type = types(i); 
 
-        CKPT_PATH = ".\res_rq2\msg_ela\results_" + type + "_" + num2str(D) + "d.pt";
+        CKPT_PATH = char(fullfile( ...
+                            PROJECT_ROOT, ...
+                            'res_rq2', ...
+                            'msg_ela', ...
+                            "results_" + type + "_" + num2str(D) + "d.pt"));
         CSV_FILE  = "IGDX_scores_" + type + "_" + num2str(D) + "d.csv";
         FEATURE_LIST = py.list({'optima_feature','fdc_feature', ...
                                 'disp_feature','r2_feature'});
