@@ -184,7 +184,7 @@ def compute_features(
     if seed is not None:
         set_seed(seed, device)
 
-    thetas = thetas.reshape(1, -1)
+    thetas = thetas.reshape(1, -1) if thetas.ndim == 1 else thetas
 
     sampled_solutions = sobol_sampling(D, num_samples=num_samples - M, device=device, seed=seed)
     X = torch.cat([sampled_solutions, means], dim=0)
